@@ -1,0 +1,18 @@
+# Xử lý dữ liệu
+numpy
+pandas
+scipy
+tqdm
+
+# Học sâu & Đồ thị (Dành cho LightGCN)
+torch
+torchvision
+torch-geometric # Hoặc dgl nếu bạn chọn dùng DGL
+
+# Đánh giá & Trực quan hóa
+scikit-learn     # Để tính MSE, RMSE
+matplotlib
+seaborn
+
+# Thử nghiệm
+jupyterlab

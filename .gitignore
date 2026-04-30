@@ -216,3 +216,40 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- IntelliJ IDEA ---
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+gen/
+.shelf/
+# --- VS Code (Cho bạn của bạn) ---
+.vscode/
+*.code-workspace
+.history/
+# --- Python & Build --
+*.py[cod]
+.venv/
+
+# --- Data & AI Models (CỰC KỲ QUAN TRỌNG) ---
+# Không push dữ liệu thô và các file model nặng lên GitHub
+data/raw/
+data/processed/
+*.zip
+*.tar.gz
+*.csv
+*.pt
+*.pth
+*.h5
+*.pickle
+*.npy
+
+# --- Docker & Logs ---
+.docker/
+logs/
+
+# --- System ---
+.DS_Store
+Thumbs.db
