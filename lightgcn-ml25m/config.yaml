@@ -1,0 +1,22 @@
+data_dir: data
+checkpoint_dir: checkpoints
+seed: 42
+
+# Data
+min_interactions: 5
+num_workers: 0
+
+# Model
+embedding_dim: 64
+num_layers: 3
+reg_weight: 1e-4
+
+# Training
+epochs: 50
+batch_size: 2048
+learning_rate: 0.001
+num_negatives: 1
+
+# Evaluation
+eval_k: 20
+eval_batch_size: 512
