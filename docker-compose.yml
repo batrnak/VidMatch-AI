@@ -1,10 +1,32 @@
 services:
   app:
+    # 1. Cấu hình để nó tự động build image từ file Dockerfile của ông
     build:
       context: .
       dockerfile: docker/Dockerfile
+
+    # 2. Đồng bộ code từ máy ngoài vào thẳng container
     volumes:
       - .:/app
     working_dir: /app
+
+    # 3. Giữ cho container luôn chạy (không bị exit ngang)
     tty: true
     stdin_open: true
+
+    # 4. Mở cửa số 8888 để PyCharm chui vào
+    ports:
+      - "8895:8888"
+
+    # 5. Ép nó chạy Jupyter ngay khi vừa thức dậy
+    command: jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser --allow-root
+
+    # 6. Cấu hình cấp GPU NVIDIA cho container
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+

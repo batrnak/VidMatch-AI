@@ -1,7 +1,0 @@
-numpy
-pandas
-scipy
-torch
-tqdm
-pyyaml
-matplotlib

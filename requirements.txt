@@ -5,9 +5,9 @@ scipy
 tqdm
 
 # Học sâu & Đồ thị (Dành cho LightGCN)
-torch
-torchvision
-torch-geometric # Hoặc dgl nếu bạn chọn dùng DGL
+# torch           # Đã có sẵn trong Docker Image CUDA, chỉ cần cài nếu chạy ngoài Windows
+# torchvision     # Đã có sẵn trong Docker Image CUDA, chỉ cần cài nếu chạy ngoài Windows
+# torch-geometric # Hoặc dgl nếu bạn chọn dùng DGL (Không bắt buộc vì code dùng PyTorch thuần)
 
 # Đánh giá & Trực quan hóa
 scikit-learn     # Để tính MSE, RMSE
@@ -16,3 +16,5 @@ seaborn
 
 # Thử nghiệm
 jupyterlab
+jupyter
+
