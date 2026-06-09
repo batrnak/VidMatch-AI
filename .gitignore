@@ -253,3 +253,5 @@ logs/
 # --- System ---
 .DS_Store
 Thumbs.db
+.junie/
+.jupyter/
