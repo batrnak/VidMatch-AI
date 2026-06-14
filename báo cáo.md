@@ -203,24 +203,7 @@ Cả hai mô hình chạy trên cùng bộ dữ liệu Leave-One-Out do Data Pip
 
 ---
 
-### 5.5. Trực quan hóa Embedding phim
-Ma trận nhúng 64 chiều của 3,706 phim được trích xuất từ LightGCN, giảm chiều xuống 2D bằng t-SNE và tô màu theo thể loại chính.
-
-![t-SNE Movie Embeddings](checkpoints/embeddings_visualization.png)
-*Hình 8: Không gian nhúng phim. Phim cùng thể loại tự động tụ thành cụm dù mô hình không được cung cấp nhãn thể loại khi huấn luyện.*
-
-**Nhận xét:**
-1. Phim Hoạt hình (Animation) tạo thành cụm tách biệt rõ ràng.
-2. Phim Hành động (Action) và Viễn tưởng (Sci-Fi) tụ lại gần nhau.
-3. Phim Hài (Comedy) phân bố rộng hơn ở trung tâm — phản ánh tính chất phổ biến và dễ kết hợp với thể loại khác.
-
-### 5.6. Trực quan hóa Đồ thị lưỡng phân
-Trích xuất 10 người dùng ngẫu nhiên cùng các phim họ đã xem, vẽ dưới dạng mạng lưới.
-
-![Đồ thị User-Item](checkpoints/user_item_graph.png)
-*Hình 9: Đồ thị lưỡng phân User (cam) – Movie (xanh). Phim phổ biến nằm ở trung tâm, đóng vai trò cầu nối giữa các User.*
-
-### 5.7. Bảng tổng kết
+### 5.5. Bảng tổng kết
 
 | Tiêu chí | Matrix Factorization | LightGCN |
 | :--- | :--- | :--- |
