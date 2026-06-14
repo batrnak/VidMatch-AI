@@ -66,9 +66,8 @@ def evaluate(
 
 
 def plot_training_metrics(
-    recalls: list[float], ndcgs: list[float], k: int, output_path: str
+    epochs: list[int], recalls: list[float], ndcgs: list[float], k: int, output_path: str
 ) -> None:
-    epochs = np.arange(1, len(recalls) + 1)
     fig, axes = plt.subplots(1, 2, figsize=(12, 4), dpi=120)
 
     axes[0].plot(epochs, recalls, marker="o", linewidth=1.8)
@@ -76,12 +75,14 @@ def plot_training_metrics(
     axes[0].set_xlabel("Epoch")
     axes[0].set_ylabel(f"Recall@{k}")
     axes[0].grid(alpha=0.3)
+    axes[0].set_xticks(epochs)
 
     axes[1].plot(epochs, ndcgs, marker="o", linewidth=1.8, color="tab:orange")
     axes[1].set_title(f"NDCG@{k} on Test")
     axes[1].set_xlabel("Epoch")
     axes[1].set_ylabel(f"NDCG@{k}")
     axes[1].grid(alpha=0.3)
+    axes[1].set_xticks(epochs)
 
     fig.tight_layout()
     fig.savefig(output_path, bbox_inches="tight")
@@ -123,9 +124,12 @@ def main() -> None:
     steps_per_epoch = max(1, len(data["train_df"]) // int(cfg["batch_size"]))
     recall_history = []
     ndcg_history = []
+    eval_epochs = []
     eval_k = int(cfg["eval_k"])
+
+    print(f"Starting training on {device}...")
     last_metrics = {"recall": 0.0, "ndcg": 0.0}
-    eval_every = 10
+    eval_every = 3
 
     for epoch in range(1, int(cfg["epochs"]) + 1):
         model.train()
@@ -163,13 +167,10 @@ def main() -> None:
                 int(cfg["eval_batch_size"]),
                 device,
             )
-            last_metrics = metrics
             print(f"Epoch {epoch}: Recall@{eval_k}={metrics['recall']:.4f}, NDCG@{eval_k}={metrics['ndcg']:.4f}")
-        else:
-            metrics = last_metrics
-
-        recall_history.append(metrics["recall"])
-        ndcg_history.append(metrics["ndcg"])
+            eval_epochs.append(epoch)
+            recall_history.append(metrics["recall"])
+            ndcg_history.append(metrics["ndcg"])
 
     ckpt_path = os.path.join(cfg["checkpoint_dir"], "lightgcn.pt")
     torch.save(
@@ -185,7 +186,7 @@ def main() -> None:
     print(f"Saved checkpoint to {ckpt_path}")
 
     plot_path = os.path.join(cfg["checkpoint_dir"], f"metrics_k{eval_k}.png")
-    plot_training_metrics(recall_history, ndcg_history, eval_k, plot_path)
+    plot_training_metrics(eval_epochs, recall_history, ndcg_history, eval_k, plot_path)
     print(f"Saved metric plot to {plot_path}")
 
 
