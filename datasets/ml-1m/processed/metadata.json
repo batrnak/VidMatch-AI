@@ -1,0 +1,7 @@
+{
+    "num_users": 6040,
+    "num_items": 3706,
+    "train_size": 988129,
+    "val_size": 6040,
+    "test_size": 6040
+}

@@ -5,8 +5,8 @@ import numpy as np
 def main():
     # Performance metrics
     models = ['Matrix Factorization', 'LightGCN']
-    recall_scores = [0.0089, 0.0833]
-    ndcg_scores = [0.0031, 0.0338]
+    recall_scores = [0.0096, 0.0833]
+    ndcg_scores = [0.0037, 0.0338]
 
     x = np.arange(len(models))
     width = 0.35

@@ -12,7 +12,7 @@ from tqdm import tqdm
 # Adjust path to import LightGCN utilities
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lightgcn-1M", "src"))
 try:
-    from data import prepare_data, build_eval_data
+    from data import build_eval_data, build_user_pos_list
     from metrics import recall_at_k, ndcg_at_k
 except ImportError as e:
     print(f"Error importing LightGCN modules: {e}")
@@ -203,18 +203,24 @@ def main():
     print('=====================================\n')
 
     # Prepare Data with Leave-One-Out split
-    print("Preparing unified Leave-One-Out data split...")
-    data = prepare_data(data_dir, min_interactions=10)
+    print("Loading pre-processed CSV data...")
+    import json
+    processed_dir = os.path.join(data_dir, "processed")
+    with open(os.path.join(processed_dir, "metadata.json"), "r") as f:
+        metadata = json.load(f)
+        
+    train_df = pd.read_csv(os.path.join(processed_dir, "train.csv"))
+    test_df = pd.read_csv(os.path.join(processed_dir, "test.csv"))
     
-    train_df = data["train_df"]
     Y_data = train_df[["userId", "movieId", "rating"]].values.astype(np.float64)
-    eval_data = build_eval_data(data["num_users"], data["test_df"])
+    eval_data = build_eval_data(metadata["num_users"], test_df)
+    user_pos = build_user_pos_list(metadata["num_users"], train_df)
 
     print(f'MovieLens 1M - Train ratings: {Y_data.shape[0]} | Test users: {len(eval_data)}')
     
     # Initialize and Train Model
-    rs = MF(Y_data, num_users=data["num_users"], num_items=data["num_items"], 
-            eval_data=eval_data, user_pos=data["user_pos"], 
+    rs = MF(Y_data, num_users=metadata["num_users"], num_items=metadata["num_items"], 
+            eval_data=eval_data, user_pos=user_pos, 
             K=args.k, lam=args.lam, print_every=args.print_every,
             learning_rate=args.lr, max_iter=args.max_iter, eval_k=args.eval_k)
             

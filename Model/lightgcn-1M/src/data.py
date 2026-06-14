@@ -13,103 +13,20 @@ try:
 except ImportError:
     from utils import ensure_dir
 
-ML1M_URL = "https://files.grouplens.org/datasets/movielens/ml-1m.zip"
+import json
 
-
-def download_ml1m(data_dir: str) -> str:
-    # 1. Check if the dataset already exists in the specified directory
-    abs_data_dir = os.path.abspath(data_dir)
-    extract_dir = os.path.join(abs_data_dir, "ml-1m")
-    if os.path.isdir(extract_dir) and os.path.exists(os.path.join(extract_dir, "ratings.dat")):
-        return extract_dir
-
-    # 2. Check standard project-level paths
-    try:
-        # Find project root (4 levels up from this file: Model/lightgcn-1M/src/data.py)
-        src_path = os.path.abspath(__file__)
-        proj_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(src_path))))
+def load_processed_data(data_dir: str):
+    proj_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    processed_dir = os.path.join(proj_root, "datasets", "ml-1m", "processed")
+    
+    with open(os.path.join(processed_dir, "metadata.json"), "r") as f:
+        metadata = json.load(f)
         
-        for fallback_sub in ["datasets/ml-1m", "data/ml-1m"]:
-            fallback_dir = os.path.join(proj_root, fallback_sub)
-            if os.path.isdir(fallback_dir) and os.path.exists(os.path.join(fallback_dir, "ratings.dat")):
-                print(f"Found existing MovieLens 1M dataset at: {fallback_dir}")
-                return fallback_dir
-    except Exception as e:
-        print(f"Error checking project fallbacks: {e}")
-
-    # 3. Fallback to normal download if not found anywhere
-    ensure_dir(data_dir)
-    zip_path = os.path.join(data_dir, "ml-1m.zip")
-    extract_dir = os.path.join(data_dir, "ml-1m")
-    if os.path.isdir(extract_dir):
-        return extract_dir
-    if not os.path.exists(zip_path):
-        import urllib.request
-
-        print("Downloading MovieLens 1M...")
-        urllib.request.urlretrieve(ML1M_URL, zip_path)
-    print("Extracting MovieLens 1M...")
-    with zipfile.ZipFile(zip_path, "r") as zip_ref:
-        zip_ref.extractall(data_dir)
-    return extract_dir
-
-
-def load_ratings(ratings_path: str) -> pd.DataFrame:
-    # MovieLens 1M uses 'ratings.dat' with '::' separated fields and no header
-    if ratings_path.endswith(".dat") or "::" in open(ratings_path, "r", encoding="utf-8").read(1024):
-        df = pd.read_csv(
-            ratings_path,
-            sep="::",
-            engine="python",
-            header=None,
-            names=["userId", "movieId", "rating", "timestamp"],
-        )
-    else:
-        df = pd.read_csv(ratings_path)
-    df = df[["userId", "movieId", "rating", "timestamp"]]
-    return df
-
-
-def filter_users(df: pd.DataFrame, min_interactions: int) -> pd.DataFrame:
-    if min_interactions <= 1:
-        return df
-    counts = df.groupby("userId").size()
-    keep_users = counts[counts >= min_interactions].index
-    return df[df["userId"].isin(keep_users)].copy()
-
-
-def reindex(df: pd.DataFrame) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
-    user_ids = np.sort(df["userId"].unique())
-    item_ids = np.sort(df["movieId"].unique())
-    user_map = {u: i for i, u in enumerate(user_ids)}
-    item_map = {i: j for j, i in enumerate(item_ids)}
-    df["userId"] = df["userId"].map(user_map)
-    df["movieId"] = df["movieId"].map(item_map)
-    return df, user_ids, item_ids
-
-
-def leave_one_out_split(
-    df: pd.DataFrame,
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    df = df.sort_values(["userId", "timestamp"])  # ascending
-    train_rows = []
-    val_rows = []
-    test_rows = []
-    for user_id, group in df.groupby("userId"):
-        items = group.to_dict("records")
-        if len(items) >= 3:
-            train_rows.extend(items[:-2])
-            val_rows.append(items[-2])
-            test_rows.append(items[-1])
-        elif len(items) == 2:
-            train_rows.append(items[0])
-            test_rows.append(items[1])
-        else:
-            train_rows.append(items[0])
-    train_df = pd.DataFrame(train_rows)
-    val_df = pd.DataFrame(val_rows) if val_rows else pd.DataFrame(columns=df.columns)
-    test_df = pd.DataFrame(test_rows) if test_rows else pd.DataFrame(columns=df.columns)
-    return train_df, val_df, test_df
+    train_df = pd.read_csv(os.path.join(processed_dir, "train.csv"))
+    val_df = pd.read_csv(os.path.join(processed_dir, "val.csv"))
+    test_df = pd.read_csv(os.path.join(processed_dir, "test.csv"))
+    
+    return train_df, val_df, test_df, metadata["num_users"], metadata["num_items"]
 
 
 def build_user_pos_list(
@@ -159,25 +76,13 @@ def build_eval_data(num_users: int, df: pd.DataFrame) -> Dict[int, int]:
     return eval_data
 
 
-def prepare_data(data_dir: str, min_interactions: int) -> Dict[str, object]:
-    extract_dir = download_ml1m(data_dir)
-    # ML-1M contains 'ratings.dat'
-    ratings_path = os.path.join(extract_dir, "ratings.dat")
-    if not os.path.exists(ratings_path):
-        # fallback to CSV if present
-        ratings_path = os.path.join(extract_dir, "ratings.csv")
-    df = load_ratings(ratings_path)
-    df = filter_users(df, min_interactions)
-    df, user_ids, item_ids = reindex(df)
-    train_df, val_df, test_df = leave_one_out_split(df)
-
-    num_users = df["userId"].nunique()
-    num_items = df["movieId"].nunique()
-
+def prepare_data(data_dir: str, min_interactions: int = 0) -> Dict[str, object]:
+    train_df, val_df, test_df, num_users, num_items = load_processed_data(data_dir)
+    
     user_pos = build_user_pos_list(num_users, train_df)
     norm_adj = build_norm_adj(num_users, num_items, train_df)
-
-    save_mappings(data_dir, user_ids, item_ids)
+    
+    # We no longer save mappings here because it's centralized in the generation script.
 
     user_pos_set = [set(pos.tolist()) for pos in user_pos]
 
@@ -190,8 +95,8 @@ def prepare_data(data_dir: str, min_interactions: int) -> Dict[str, object]:
         "user_pos": user_pos,
         "user_pos_set": user_pos_set,
         "norm_adj": norm_adj,
-        "user_ids": user_ids,
-        "item_ids": item_ids,
+        "user_ids": np.arange(num_users),
+        "item_ids": np.arange(num_items),
     }
 
 
