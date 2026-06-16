@@ -129,7 +129,14 @@ def main() -> None:
 
     print(f"Starting training on {device}...")
     last_metrics = {"recall": 0.0, "ndcg": 0.0}
-    eval_every = 3
+    eval_every = 10
+
+    # Early Stopping configuration
+    best_recall = 0.0
+    best_epoch = 0
+    patience = 10  # Số lần đánh giá liên tiếp không cải thiện trước khi dừng
+    patience_counter = 0
+    best_state_dict = None
 
     for epoch in range(1, int(cfg["epochs"]) + 1):
         model.train()
@@ -172,6 +179,41 @@ def main() -> None:
             recall_history.append(metrics["recall"])
             ndcg_history.append(metrics["ndcg"])
 
+            # Early Stopping: lưu model tốt nhất và kiểm tra patience
+            if metrics["recall"] > best_recall:
+                best_recall = metrics["recall"]
+                best_epoch = epoch
+                patience_counter = 0
+                # Lưu bản sao trọng số tốt nhất
+                import copy
+                best_state_dict = copy.deepcopy(model.state_dict())
+                print(f"  -> New best Recall@{eval_k}={best_recall:.4f} at epoch {epoch}")
+            else:
+                patience_counter += 1
+                print(f"  -> No improvement ({patience_counter}/{patience})")
+
+            if patience_counter >= patience:
+                print(f"\nEarly stopping at epoch {epoch}! Best Recall@{eval_k}={best_recall:.4f} at epoch {best_epoch}")
+                break
+
+    # Lưu checkpoint tốt nhất (best model)
+    if best_state_dict is not None:
+        best_ckpt_path = os.path.join(cfg["checkpoint_dir"], "lightgcn.pt")
+        torch.save(
+            {
+                "model_state": best_state_dict,
+                "num_users": data["num_users"],
+                "num_items": data["num_items"],
+                "embedding_dim": int(cfg["embedding_dim"]),
+                "num_layers": int(cfg["num_layers"]),
+                "best_recall": best_recall,
+                "best_epoch": best_epoch,
+            },
+            best_ckpt_path,
+        )
+        print(f"Saved BEST checkpoint (epoch {best_epoch}) to {best_ckpt_path}")
+
+    # Lưu checkpoint cuối cùng (last model)
     ckpt_path = os.path.join(cfg["checkpoint_dir"], "lightgcn.pt")
     torch.save(
         {
@@ -183,7 +225,7 @@ def main() -> None:
         },
         ckpt_path,
     )
-    print(f"Saved checkpoint to {ckpt_path}")
+    print(f"Saved LAST checkpoint to {ckpt_path}")
 
     plot_path = os.path.join(cfg["checkpoint_dir"], f"metrics_k{eval_k}.png")
     plot_training_metrics(eval_epochs, recall_history, ndcg_history, eval_k, plot_path)

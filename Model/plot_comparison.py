@@ -4,14 +4,14 @@ import numpy as np
 
 def main():
     # Performance metrics
-    models = ['Matrix Factorization', 'LightGCN']
-    recall_scores = [0.0096, 0.0833]
-    ndcg_scores = [0.0037, 0.0338]
+    models = ['BPR-MF', 'LightGCN']
+    recall_scores = [0.1235, 0.1280]
+    ndcg_scores = [0.0473, 0.0502]
 
     x = np.arange(len(models))
     width = 0.35
 
-    fig, ax = plt.subplots(figsize=(8, 6))
+    fig, ax = plt.subplots(figsize=(8, 4.5))
     
     # Plotting bars
     rects1 = ax.bar(x - width/2, recall_scores, width, label='Recall@20', color='skyblue', edgecolor='black')
@@ -22,6 +22,8 @@ def main():
     ax.set_title('Top-20 Ranking Comparison: MF vs LightGCN')
     ax.set_xticks(x)
     ax.set_xticklabels(models, fontsize=12, fontweight='bold')
+    ax.set_ylim(0, 0.14)
+    ax.grid(axis='y', linestyle='--', alpha=0.5)
     ax.legend()
 
     # Function to attach a text label above each bar
