@@ -77,12 +77,24 @@ Lượng tương tác bùng nổ vào nửa cuối năm 2000 (giai đoạn thu t
 *Hình 4: Biến động số lượng đánh giá theo thời gian.*
 
 ### 2.3. Tiền xử lý dữ liệu (Data Preprocessing)
-Toàn bộ quá trình tiền xử lý được thực hiện tập trung trong kịch bản `data/generate_splits.py`, gồm 4 bước:
+Toàn bộ quá trình tiền xử lý được thực hiện tập trung trong kịch bản `data/generate_splits.py`, gồm các bước cốt lõi sau:
 
-1. **Lọc nhiễu (K-core Filtering):** Loại bỏ người dùng có ít hơn 10 tương tác. Dù ML-1M đã yêu cầu tối thiểu 20, bước này đảm bảo tính tổng quát khi áp dụng cho dataset khác.
-2. **Mã hóa lại ID (Re-indexing):** Ánh xạ toàn bộ UserID và MovieID gốc thành dãy số nguyên liên tục $[0, N-1]$. Đây là bước bắt buộc để các ID có thể dùng trực tiếp làm chỉ mục trong Embedding Matrix, tránh lãng phí bộ nhớ.
-3. **Sắp xếp theo thời gian (Chronological Sorting):** Dữ liệu của mỗi người dùng được sắp xếp tăng dần theo Timestamp, bảo toàn tính nhân quả của hành vi.
-4. **Phân chia Leave-One-Out:** Với mỗi người dùng (có ≥ 3 tương tác): tương tác cuối cùng → `test.csv`, tương tác áp chót → `val.csv`, phần còn lại → `train.csv`. Ba tệp vật lý này được dùng chung cho mọi mô hình, ngăn chặn triệt để hiện tượng rò rỉ dữ liệu (Data Leakage).
+1. **Lọc nhiễu (K-core Filtering):** Loại bỏ người dùng có ít hơn 10 tương tác. Đối với MovieLens 1M, do GroupLens đã lọc sẵn người dùng có tối thiểu 20 tương tác, bước này giữ nguyên toàn bộ 6,040 người dùng, nhưng đảm bảo tính tổng quát khi áp dụng mã nguồn cho các tập dữ liệu thực tế khác.
+2. **Mã hóa lại ID (Re-indexing):** Ánh xạ toàn bộ UserID gốc ($1 \to 6040$) và MovieID gốc (lên tới $3952$, có các ID trống) thành các chuỗi số nguyên liên tục bắt đầu từ 0: Users $\in [0, 6039]$ và Movies $\in [0, 3705]$. Đây là bước bắt buộc để các ID có thể được sử dụng trực tiếp làm chỉ mục (index) truy xuất trong ma trận nhúng (Embedding Matrix), tránh lãng phí bộ nhớ VRAM/RAM cho các ID bị thiếu.
+3. **Sắp xếp theo thời gian (Chronological Sorting):** Lịch sử tương tác của mỗi người dùng được sắp xếp tăng dần theo thời gian (Timestamp), đảm bảo thứ tự nhân quả của hành vi tiêu dùng phim.
+4. **Nhị phân hóa tương tác (Binarization):** Chuyển đổi dữ liệu đánh giá dạng tường minh (Explicit Feedback - điểm số từ 1 đến 5 sao) thành dạng ẩn (Implicit Feedback). Bất kể số sao đánh giá là bao nhiêu, mọi tương tác đã xảy ra đều được coi là một tương tác tích cực (Positive Interaction, nhãn là 1), và các tương tác chưa xảy ra được coi là âm tính (Negative Interaction, nhãn là 0). Điều này phù hợp với mục tiêu tối ưu xếp hạng (Ranking) của BPR Loss.
+5. **Phân chia Leave-One-Out (Bớt một):** Với mỗi người dùng (đảm bảo có $\ge 3$ tương tác):
+   * Tương tác cuối cùng theo thời gian $\to$ đưa vào tập **Test** (`test.csv`) để làm thước đo hiệu năng cuối cùng.
+   * Tương tác áp chót theo thời gian $\to$ đưa vào tập **Validation** (`val.csv`) để điều chỉnh siêu tham số và chạy Early Stopping.
+   * Tất cả các tương tác trước đó $\to$ giữ lại ở tập **Train** (`train.csv`) để huấn luyện mô hình.
+
+#### Thống kê bộ dữ liệu sau phân chia:
+| Bộ dữ liệu | Số lượng bản ghi | Tỷ lệ (%) | Ý nghĩa học máy |
+| :--- | :---: | :---: | :--- |
+| **Train Set** (`train.csv`) | 988,129 | 98.80% | Dùng để huấn luyện tham số nhúng (Embeddings) của mô hình. |
+| **Validation Set** (`val.csv`) | 6,040 | 0.60% | Dùng để đánh giá chéo định kỳ, tinh chỉnh siêu tham số và chạy Early Stopping. |
+| **Test Set** (`test.csv`) | 6,040 | 0.60% | Dùng để kiểm định hiệu năng khách quan cuối cùng sau khi hoàn tất huấn luyện. |
+| **Tổng cộng (MovieLens 1M)** | **1,000,209** | **100.00%** | Độ thưa thớt của dữ liệu huấn luyện (Sparsity) là **95.58%**. |
 
 ---
 
