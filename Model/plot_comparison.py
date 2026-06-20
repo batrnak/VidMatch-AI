@@ -5,8 +5,8 @@ import numpy as np
 def main():
     # Performance metrics
     models = ['BPR-MF', 'LightGCN']
-    recall_scores = [0.1235, 0.1280]
-    ndcg_scores = [0.0473, 0.0502]
+    recall_scores = [0.1209, 0.1384]
+    ndcg_scores = [0.0483, 0.0540]
 
     x = np.arange(len(models))
     width = 0.35
@@ -22,7 +22,7 @@ def main():
     ax.set_title('Top-20 Ranking Comparison: MF vs LightGCN')
     ax.set_xticks(x)
     ax.set_xticklabels(models, fontsize=12, fontweight='bold')
-    ax.set_ylim(0, 0.14)
+    ax.set_ylim(0, 0.16)
     ax.grid(axis='y', linestyle='--', alpha=0.5)
     ax.legend()
 

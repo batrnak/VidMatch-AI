@@ -55,8 +55,15 @@ class MF(object):
 
         # History
         self.loss_history = []
+        self.val_loss_history = []
         self.recall_history = []
         self.ndcg_history = []
+        
+        # Best model tracking
+        self.best_recall = -1.0
+        self.best_W = None
+        self.best_X = None
+        self.best_b = None
 
         # Convert user_pos to sets for fast O(1) negative sampling check
         print("Toi uu hoa: Khoi tao tap hop tuong tac de lay mau am nhanh...")
@@ -144,8 +151,42 @@ class MF(object):
             
         return float(np.mean(recalls)), float(np.mean(ndcgs))
 
+    def calculate_val_loss(self, batch_size=8192):
+        """Tính BPR Loss trên tập Validation để vẽ biểu đồ so sánh"""
+        if self.eval_data is None:
+            return 0.0
+        val_users = list(self.eval_data.keys())
+        if len(val_users) == 0:
+            return 0.0
+        
+        # Lấy mẫu ngẫu nhiên từ tập validation
+        sampled_users = np.random.choice(val_users, size=min(batch_size, len(val_users)), replace=False)
+        pos_items = np.empty(len(sampled_users), dtype=np.int64)
+        neg_items = np.empty(len(sampled_users), dtype=np.int64)
+        
+        for i, u in enumerate(sampled_users):
+            pos_items[i] = self.eval_data[u]
+            u_set = self.user_pos_set[u]
+            val_item = self.eval_data[u]
+            while True:
+                neg = np.random.randint(0, self.num_items)
+                if neg not in u_set and neg != val_item:
+                    neg_items[i] = neg
+                    break
+                    
+        W_u = self.W[:, sampled_users].T
+        X_i = self.X[pos_items, :]
+        X_j = self.X[neg_items, :]
+        
+        scores_pos = np.sum(W_u * X_i, axis=1) + self.b[pos_items]
+        scores_neg = np.sum(W_u * X_j, axis=1) + self.b[neg_items]
+        diff = scores_pos - scores_neg
+        sigmoid_val = 1.0 / (1.0 + np.exp(-np.clip(diff, -50.0, 50.0)))
+        loss = -np.mean(np.log(sigmoid_val + 1e-8))
+        return float(loss)
+
     def fit(self):
-        print(f"Bắt đầu huấn luyện BPR-MF và đánh giá Top-{self.eval_k} Ranking...")
+        print(f"Bat dau huan luyen BPR-MF va danh gia Top-{self.eval_k} Ranking...")
         batch_size = 8192
         steps = self.n_ratings // batch_size
         
@@ -157,14 +198,33 @@ class MF(object):
             epoch_loss /= steps
             self.loss_history.append(epoch_loss)
             
+            # Tính Val Loss mỗi epoch để vẽ biểu đồ đầy đủ
+            val_loss = self.calculate_val_loss(batch_size)
+            self.val_loss_history.append((it + 1, val_loss))
+            
             if (it + 1) % self.print_every == 0 or it == 0 or it == self.max_iter - 1:
                 if self.eval_data is not None:
                     recall, ndcg = self.evaluate_ranking()
                     self.recall_history.append((it + 1, recall))
                     self.ndcg_history.append((it + 1, ndcg))
-                    print(f'Iter {it+1}/{self.max_iter} - Loss: {epoch_loss:.4f} - Recall@{self.eval_k}: {recall:.4f} - NDCG@{self.eval_k}: {ndcg:.4f}')
+                    print(f'Iter {it+1}/{self.max_iter} - Train Loss: {epoch_loss:.4f} - Val Loss: {val_loss:.4f} - Recall@{self.eval_k}: {recall:.4f} - NDCG@{self.eval_k}: {ndcg:.4f}')
+                    
+                    # Theo doi va luu checkpoint tot nhat dua tren Recall
+                    if recall > self.best_recall:
+                        self.best_recall = recall
+                        self.best_W = self.W.copy()
+                        self.best_X = self.X.copy()
+                        self.best_b = self.b.copy()
+                        print(f"  -> Luu checkpoint BPR-MF tot nhat tai iteration {it+1} (Recall@{self.eval_k} = {recall:.4f})")
                 else:
-                    print(f'Iter {it+1}/{self.max_iter} - Loss: {epoch_loss:.4f}')
+                    print(f'Iter {it+1}/{self.max_iter} - Train Loss: {epoch_loss:.4f} - Val Loss: {val_loss:.4f}')
+        
+        # Khoi phuc lai weights tot nhat sau khi ket thuc train
+        if self.best_W is not None:
+            self.W = self.best_W.copy()
+            self.X = self.best_X.copy()
+            self.b = self.best_b.copy()
+            print(f"\nHuan luyen hoan tat. Da khoi phuc trong so mo hinh tot nhat tu Iteration co Recall@{self.eval_k} cao nhat.")
 
 
 def main():
@@ -183,7 +243,7 @@ def main():
     proj_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     data_dir = os.path.join(proj_root, "datasets", "ml-1m")
 
-    print('=== THÔNG TIN CẤU HÌNH BPR-MF RANKING ===')
+    print('=== THONG TIN CAU HINH BPR-MF RANKING ===')
     print(f'Latent Factors (K) = {args.k}')
     print(f'Lambda = {args.lam}')
     print(f'Learning Rate = {args.lr}')
@@ -199,21 +259,32 @@ def main():
         metadata = json.load(f)
         
     train_df = pd.read_csv(os.path.join(processed_dir, "train.csv"))
+    val_df = pd.read_csv(os.path.join(processed_dir, "val.csv"))
     test_df = pd.read_csv(os.path.join(processed_dir, "test.csv"))
     
     Y_data = train_df[["userId", "movieId", "rating"]].values.astype(np.float64)
-    eval_data = build_eval_data(metadata["num_users"], test_df)
+    val_data = build_eval_data(metadata["num_users"], val_df)
+    test_data = build_eval_data(metadata["num_users"], test_df)
     user_pos = build_user_pos_list(metadata["num_users"], train_df)
 
-    print(f'MovieLens 1M - Train ratings: {Y_data.shape[0]} | Test users: {len(eval_data)}')
+    print(f'MovieLens 1M - Train ratings: {Y_data.shape[0]} | Val users: {len(val_data)} | Test users: {len(test_data)}')
     
     # Initialize and Train Model
     rs = MF(Y_data, num_users=metadata["num_users"], num_items=metadata["num_items"], 
-            eval_data=eval_data, user_pos=user_pos, 
+            eval_data=val_data, user_pos=user_pos, 
             K=args.k, lam=args.lam, print_every=args.print_every,
             learning_rate=args.lr, max_iter=args.max_iter, eval_k=args.eval_k)
             
     rs.fit()
+
+    # Danh gia cuoi cung tren tap Test
+    print("\n=== DANH GIA CUOI CUNG TREN TAP TEST (KHONG RO RI DU LIEU) ===")
+    original_eval_data = rs.eval_data
+    rs.eval_data = test_data
+    test_recall, test_ndcg = rs.evaluate_ranking()
+    rs.eval_data = original_eval_data
+    print(f"BPR-MF Final Test Results: Recall@{args.eval_k} = {test_recall:.4f} | NDCG@{args.eval_k} = {test_ndcg:.4f}")
+    print("============================================================\n")
 
     # Save Checkpoint Plot
     plot_file = Path(os.path.join(proj_root, args.plot_path))
@@ -225,24 +296,44 @@ def main():
         
         plt.figure(figsize=(12, 5))
         plt.subplot(1, 2, 1)
-        plt.plot(iters, recalls, 'b-o', label=f'Recall@{args.eval_k}')
+        plt.plot(iters, recalls, 'b-o', label=f'Val Recall@{args.eval_k}')
         plt.xlabel('Iteration')
         plt.ylabel(f'Recall@{args.eval_k}')
-        plt.title('BPR-MF Ranking Performance (Recall)')
+        plt.title('BPR-MF Validation Performance (Recall)')
         plt.grid(True)
         plt.legend()
 
         plt.subplot(1, 2, 2)
-        plt.plot(iters, ndcgs, 'g-s', label=f'NDCG@{args.eval_k}')
+        plt.plot(iters, ndcgs, 'g-s', label=f'Val NDCG@{args.eval_k}')
         plt.xlabel('Iteration')
         plt.ylabel(f'NDCG@{args.eval_k}')
-        plt.title('BPR-MF Ranking Performance (NDCG)')
+        plt.title('BPR-MF Validation Performance (NDCG)')
         plt.grid(True)
         plt.legend()
 
         plt.tight_layout()
         plt.savefig(plot_file)
+        plt.close()
         print(f'\nRanking metrics plot saved to: {plot_file.resolve()}')
+
+    # Vẽ biểu đồ Loss (Train Loss vs Val Loss)
+    loss_plot_path = Path(os.path.join(proj_root, 'checkpoints', 'mf_loss.png'))
+    if len(rs.loss_history) > 0:
+        iters_loss = list(range(1, rs.max_iter + 1))
+        val_iters, val_losses = zip(*rs.val_loss_history)
+        
+        plt.figure(figsize=(8, 5))
+        plt.plot(iters_loss, rs.loss_history, 'r-', linewidth=2, label='Train BPR Loss')
+        plt.plot(val_iters, val_losses, 'b--', linewidth=2, label='Val BPR Loss')
+        plt.xlabel('Iteration')
+        plt.ylabel('BPR Loss')
+        plt.title('BPR-MF Training & Validation Loss Curve')
+        plt.grid(True)
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(loss_plot_path)
+        plt.close()
+        print(f'Loss curve plot saved to: {loss_plot_path.resolve()}')
 
     # Save checkpoint weights (using torch if available, otherwise numpy npz)
     ckpt_path = os.path.join(proj_root, args.checkpoint_path)
