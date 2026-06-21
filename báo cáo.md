@@ -190,6 +190,11 @@ BPR-MF tối ưu trực tiếp bài toán xếp hạng Top-N bằng hàm mất m
 ![MF Loss](checkpoints/mf_loss.png)
 *Hình 5: Đường cong huấn luyện BPR BPR-MF (Train Loss vs Val Loss).*
 
+**Nhận xét đường cong Loss của BPR-MF:**
+* **Hội tụ nhanh:** Cả Train Loss và Val Loss đều giảm rất nhanh trong 10 iterations đầu tiên (Train Loss giảm từ ~0.36 xuống ~0.17, Val Loss giảm từ ~0.40 xuống ~0.26), cho thấy mô hình học nhanh các đặc trưng tương tác cơ bản.
+* **Không xảy ra quá khớp (Overfitting):** Val Loss đi xuống đồng dạng với Train Loss và giữ trạng thái đi ngang ổn định ở các epoch cuối, không có xu hướng tăng ngược trở lại.
+* **Dao động nhẹ ở Val Loss:** Do cơ chế lấy mẫu ngẫu nhiên (Negative Sampling) trên tập Val tại mỗi epoch, đồ thị Val Loss có sự nhấp nhô nhẹ nhưng xu thế chung vẫn phẳng và ổn định.
+
 ![MF Metrics](checkpoints/mf_metrics_k20.png)
 *Hình 6: Recall@20 và NDCG@20 của BPR-MF trên tập Validation qua các Iteration.*
 
@@ -202,6 +207,11 @@ LightGCN tối ưu trực tiếp bài toán xếp hạng qua BPR Loss, được 
 
 ![LightGCN Loss](checkpoints/lightgcn_loss.png)
 *Hình 7: Đường cong huấn luyện BPR LightGCN (Train Loss vs Val Loss).*
+
+**Nhận xét đường cong Loss của LightGCN:**
+* **Khả năng học sâu (Deep Fitting):** Train Loss của LightGCN giảm xuống mức rất thấp (~0.08 ở epoch 150) so với BPR-MF (~0.13), chứng tỏ cấu trúc mạng đồ thị với cơ chế lan truyền đặc trưng qua 3 lớp giúp mô hình khớp dữ liệu huấn luyện và biểu diễn các mối quan hệ đa bậc tốt hơn hẳn.
+* **Độ mượt mà và ổn định:** Train Loss giảm vô cùng mịn màng. Val Loss giảm đều và ổn định quanh mức 0.22 - 0.23 từ epoch 60 trở đi.
+* **Khả năng tổng quát hóa tốt:** Không có dấu hiệu của overfitting dù chạy tới 150 epoch (Val Loss không bị tăng lại ở cuối), nhờ hệ số chuẩn hóa $\lambda = 1e-4$ hoạt động hiệu quả.
 
 ![LightGCN Metrics](checkpoints/metrics_k20.png)
 *Hình 8: Recall@20 và NDCG@20 của LightGCN trên tập Validation qua các Epoch.*
