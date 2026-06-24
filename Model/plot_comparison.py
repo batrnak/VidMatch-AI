@@ -5,8 +5,8 @@ import numpy as np
 def main():
     # Performance metrics
     models = ['BPR-MF', 'LightGCN']
-    recall_scores = [0.1209, 0.1384]
-    ndcg_scores = [0.0483, 0.0540]
+    recall_scores = [0.1238 , 0.1384]
+    ndcg_scores = [0.0461, 0.0540]
 
     x = np.arange(len(models))
     width = 0.35
