@@ -7,8 +7,8 @@
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **VidMatch-AI** là hệ thống gợi ý phim tiên tiến được xây dựng dựa trên công nghệ học sâu và học máy đồ thị. Dự án này triển khai và so sánh hai thuật toán gợi ý hàng đầu hiện nay trên tập dữ liệu chuẩn **MovieLens 1M**:
-1.  **Matrix Factorization (MF) with Bias:** Mô hình phân rã ma trận tối ưu hóa bằng thuật toán Batch Gradient Descent kết hợp độ lệch (User/Item Biases).
-2.  **LightGCN (Light Graph Convolutional Networks):** Mô hình mạng nơ-ron đồ thị (GCN) thế hệ mới được tối ưu hóa cho tác vụ gợi ý bằng cách lược bỏ các phép biến đổi phi tuyến phức tạp.
+1.  **BPR-MF (Bayesian Personalized Ranking Matrix Factorization):** Mô hình phân rã ma trận được tối ưu hóa trực tiếp cho bài toán xếp hạng Top-K thông qua hàm mất mát học theo cặp (Pairwise Learning to Rank - BPR Loss) kết hợp độ lệch tự nhiên (Bias) của phim.
+2.  **LightGCN (Light Graph Convolutional Networks):** Mô hình mạng nơ-ron đồ thị (GCN) thế hệ mới được thiết kế dành riêng cho tác vụ gợi ý bằng cách lược bỏ các phép biến đổi phi tuyến phức tạp (Feature Transformation & ReLU) để truyền tải thông tin sở thích (Collaborative Signal) qua đồ thị hiệu quả hơn.
 
 Dự án được cấu hình chạy toàn bộ trên **NVIDIA GPU (CUDA)** thông qua môi trường **Docker** ảo hóa để đảm bảo tính đồng bộ, dễ dàng triển khai và không bị xung đột thư viện trên mọi hệ điều hành.
 
@@ -18,8 +18,8 @@ Dự án được cấu hình chạy toàn bộ trên **NVIDIA GPU (CUDA)** thô
 - [1. Cấu trúc Thư mục Dự án](#1-cấu-trúc-thư-mục-dự-án)
 - [2. Yêu cầu Hệ thống (Prerequisites)](#2-yêu-cầu-hệ-thống-prerequisites)
 - [3. Hướng dẫn Cài đặt & Khởi chạy Docker](#3-hướng-dẫn-cài-đặt--khởi-chạy-docker)
-- [4. Cấu hình với IDE (PyCharm / IntelliJ / VS Code)](#4-cấu-hình-với-ide-pycharm--intellij--vs-code)
-- [5. Hướng dẫn Huấn luyện & Đánh giá](#5-hướng-dẫn-huấn-luyện--đánh-giá)
+- [4. Hướng dẫn Huấn luyện (Training)](#4-hướng-dẫn-huấn-luyện-training)
+- [5. Chạy Demo Gợi ý Tương tác (Terminal Demo)](#5-chạy-demo-gợi-ý-tương-tác-terminal-demo)
 - [6. Bảng kết quả Đánh giá Mô hình](#6-bảng-kết-quả-đánh-giá-mô-hình)
 
 ---
@@ -31,16 +31,18 @@ VidMatch-AI/
 ├── data/
 │   └── EDA.ipynb                      # Notebook phân tích khám phá dữ liệu MovieLens (EDA)
 ├── datasets/
-│   └── ml-1m/                         # Dataset MovieLens 1M (tự động tải nếu thiếu)
+│   └── ml-1m/                         # Dataset MovieLens 1M (tự động tải & xử lý Leave-One-Out)
 ├── docker/
 │   └── Dockerfile                     # Dockerfile cấu hình môi trường PyTorch GPU (CUDA 12.1)
+├── checkpoints/                       # Thư mục lưu trọng số tốt nhất (.pt / .npz) và biểu đồ hội tụ (Loss Curves)
 ├── Model/
-│   ├── lightgcn-1M/                   # Source code mô hình học sâu đồ thị LightGCN cho ML-1M
-│   │   ├── src/                       # Các module xử lý dữ liệu, mô hình và huấn luyện
-│   │   ├── config.yaml                # Tham số cấu hình LightGCN
-│   │   └── README.md                  # Hướng dẫn chi tiết cho LightGCN
-│   └── MF/                            # Source code mô hình phân rã ma trận
-│       └── mf_with_bias.py            # Script Python triển khai, chạy và đánh giá MF (tự động tải data)
+│   ├── lightgcn-1M/                   # Source code mô hình Mạng đồ thị LightGCN
+│   │   ├── src/                       # Các module xử lý đồ thị, mô hình và huấn luyện
+│   │   ├── config.yaml                # Tham số siêu cấu hình LightGCN (Epochs, Batch size, L2 Reg, v.v.)
+│   │   └── README.md                  # Hướng dẫn chi tiết cho thư mục LightGCN
+│   └── BPR-MF/                        # Source code mô hình phân rã ma trận
+│       └── bpr_mf.py                  # Script Python huấn luyện và đánh giá BPR-MF
+├── demo_terminal.py                   # Script chạy demo thực tế xem gợi ý Top-10 phim cho người dùng
 ├── docker-compose.yml                 # File docker-compose cấu hình ánh xạ cổng, GPU và volume
 ├── requirements.txt                   # Danh sách thư viện Python phụ trợ
 └── README.md                          # Hướng dẫn tổng quan dự án
@@ -53,7 +55,7 @@ VidMatch-AI/
 Để container Docker có thể truy cập và sử dụng GPU NVIDIA từ máy vật lý của bạn (Host), hệ thống cần đáp ứng các điều kiện sau:
 
 ### A. Cấu hình máy Host (Windows)
-*   **Card màn hình:** NVIDIA GPU hỗ trợ CUDA.
+*   **Card màn hình:** NVIDIA GPU hỗ trợ CUDA (Khuyến nghị VRAM >= 4GB).
 *   **Driver:** Cài đặt driver card đồ họa NVIDIA mới nhất trên Windows.
 *   **WSL 2 (Windows Subsystem for Linux):** Đã kích hoạt và cài đặt (khuyên dùng Ubuntu distro).
 *   **Docker Desktop:** Đã bật cấu hình **Use the WSL 2 based engine** trong phần cấu hình của Docker.
@@ -87,71 +89,69 @@ sudo systemctl restart docker
 Mở PowerShell hoặc CMD tại thư mục gốc của dự án trên Windows và thực hiện các bước sau:
 
 ### Bước 1: Build Image và Khởi động Container
-Chạy lệnh sau để Docker tự động xây dựng môi trường phát triển:
+Chạy lệnh sau để Docker tự động xây dựng môi trường và gắn kết mã nguồn:
 ```bash
-docker-compose up --build -d
+docker compose up --build -d
 ```
 *   Tham số `-d` giúp chạy container ngầm (background).
-*   **Jupyter Notebook Server:** Được mở tại cổng máy thật: `http://127.0.0.1:8895`.
+*   **Jupyter Notebook Server:** Sẽ được tự động bật và map ra cổng `http://127.0.0.1:8895`.
 
-### Bước 2: Kiểm tra CUDA GPU trong Docker
-Chạy lệnh sau để xác nhận rằng PyTorch bên trong Docker đã nhận diện card đồ họa thành công:
+### Bước 2: Kiểm tra kết nối CUDA trong Docker
+Chạy lệnh sau để xác nhận PyTorch bên trong Docker đã nhận diện card đồ họa:
 ```bash
-docker-compose exec app python -c "import torch; print('CUDA Available:', torch.cuda.is_available()); print('Device Name:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'None')"
+docker compose exec app python -c "import torch; print('CUDA Available:', torch.cuda.is_available()); print('Device Name:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'None')"
 ```
-*Kết quả hiển thị `CUDA Available: True` kèm tên card đồ họa NVIDIA của bạn là cấu hình GPU thành công.*
 
 ---
 
-## 4. Cấu hình với IDE (PyCharm / IntelliJ / VS Code)
+## 4. Hướng dẫn Huấn luyện (Training)
 
-Để lập trình và gỡ lỗi trực tiếp trong môi trường Docker thông qua IDE:
+Cả hai thuật toán đều được cấu hình chung một tập dữ liệu đã qua tiền xử lý, chia tách dựa trên cơ chế **Leave-One-Out** (Giữ lại item cuối cùng cho quá trình đánh giá khách quan). 
 
-### A. Cấu hình Python Interpreter
-1. Vào **Settings / Preferences** (`Ctrl + Alt + S`) -> **Project: VidMatch-AI** -> **Python Interpreter**.
-2. Chọn biểu tượng bánh răng/Add Interpreter -> Chọn **Add New Interpreter > On Docker Compose...**
-3. Cấu hình đường dẫn:
-   * **Configuration files:** Chọn file `docker-compose.yml` của dự án.
-   * **Service:** Chọn service `app`.
-4. Nhấn **Next / Finish**. IDE sẽ tự động ánh xạ môi trường và nhận diện đầy đủ thư viện PyTorch CUDA trong Docker.
+### A. Huấn luyện BPR-MF (Matrix Factorization)
+*   **Lệnh huấn luyện (qua Docker):**
+    ```bash
+    docker compose exec app python Model/BPR-MF/bpr_mf.py
+    ```
+*   **Tuỳ chỉnh cấu hình (Ví dụ):**
+    ```bash
+    docker compose exec app python Model/BPR-MF/bpr_mf.py --k 20 --lam 0.01 --lr 0.05 --max-iter 40
+    ```
+*   **Đầu ra:** Mô hình sẽ tự động tính toán cả Train Loss và Validation Loss để vẽ đồ thị hội tụ vào thư mục `checkpoints/mf_loss.png` và lưu bộ trọng số tốt nhất vào `checkpoints/mf.pt` (hoặc `mf.npz`).
 
-### B. Chạy Jupyter Notebook (`.ipynb`)
-Mở notebook (ví dụ: `data/EDA.ipynb`):
-1. Đảm bảo chọn tùy chọn **`IDE-Managed Server (Auto)`** trên thanh công cụ của Notebook ở góc trên bên phải.
-2. Nhấn nút **Run Cell** (hình tam giác màu xanh) bên cạnh code để chạy.
-3. *Lưu ý:* Dự án đã được cấu hình sẵn các file `jupyter_server_config.py` ở thư mục gốc để tự động điều phối IP `0.0.0.0`, đảm bảo PyCharm kết nối trực tiếp vào Docker mà không gặp bất cứ lỗi cổng (`NoHttpResponseException`) nào.
+### B. Huấn luyện LightGCN
+*   **Lệnh huấn luyện (qua Docker):**
+    ```bash
+    docker compose exec app python -m Model.lightgcn-1M.src.train --config Model/lightgcn-1M/config.yaml
+    ```
+*   **Tùy chỉnh cấu hình:** Tất cả siêu tham số (Epochs, L2 Reg, Embedding Dim, Batch Size) được lưu ở file `Model/lightgcn-1M/config.yaml`.
+*   **Đầu ra:** Mô hình kích hoạt Early Stopping để ngăn Overfitting, tự động lưu `checkpoints/best_lightgcn.pt` và biểu đồ Loss tại `checkpoints/lightgcn_loss.png`.
 
 ---
 
-## 5. Hướng dẫn Huấn luyện & Đánh giá
+## 5. Chạy Demo Gợi ý Tương tác (Terminal Demo)
 
-### A. Huấn luyện mô hình Phân rã ma trận (Matrix Factorization)
-*   **Chạy trực tiếp từ dòng lệnh Docker:**
-    ```bash
-    docker-compose exec app python -m Model.MF.mf_with_bias
-    ```
-*   **Tùy biến tham số (CLI Options):**
-    ```bash
-    docker-compose exec app python -m Model.MF.mf_with_bias --k 20 --lam 0.05 --lr 0.5 --max-iter 30
-    ```
-*   **Đặc điểm:** Code tính toán lỗi và đánh giá RMSE đã được tối ưu hóa vector hóa bằng NumPy, cho phép huấn luyện cực kỳ nhanh chóng. Sau khi chạy xong, script sẽ tự động lưu biểu đồ hội tụ của Loss và RMSE tại `checkpoints/mf_convergence_1m.png`.
+Dự án cung cấp một giao diện mô phỏng trên terminal để thử nghiệm các gợi ý phim thực tế (Top-10) từ hai mô hình, đồng thời đánh dấu chính xác xem bộ phim gợi ý có xuất hiện (Hit) trong tập Validation/Test của người dùng hay không.
 
-### B. Huấn luyện mô hình Mạng Đồ Thị (LightGCN)
-*   **Chạy trực tiếp từ dòng lệnh Docker:**
+*   **Chạy trực tiếp (Nếu máy bạn có cài sẵn các thư viện):**
     ```bash
-    docker-compose exec app python -m Model.lightgcn-1M.src.train --config Model/lightgcn-1M/config.yaml
+    python demo_terminal.py
     ```
-*   **Đặc điểm:** Tự động tối ưu hoá siêu tham số theo cấu hình trong file `Model/lightgcn-1M/config.yaml`. Kết quả checkpoint mô hình và biểu đồ đánh giá Metrics (Recall@20, NDCG@20) sẽ được lưu lại trong thư mục `checkpoints/`.
+*   **Hoặc chạy qua Docker:**
+    ```bash
+    docker compose exec app python demo_terminal.py
+    ```
+Bạn chỉ cần nhập ID người dùng (ví dụ: `15`, `256`) và hệ thống sẽ in ra danh sách lịch sử các phim người dùng đã xem, theo sau là gợi ý song song từ hai mô hình.
 
 ---
 
 ## 6. Bảng kết quả Đánh giá Mô hình
 
-Dưới đây là bảng so sánh hiệu năng của các mô hình gợi ý đã triển khai trên tập dữ liệu MovieLens 1M:
+Dưới đây là bảng so sánh hiệu năng xếp hạng trên tập Test khách quan (không có rò rỉ dữ liệu) của hai mô hình trên MovieLens 1M. Đánh giá xếp hạng dùng cơ chế **Leave-One-Out** với các chỉ số **Recall@20** và **NDCG@20**.
 
-| STT | Mô hình gợi ý | Dataset thử nghiệm | K (Nhân tử ẩn / Chiều nhúng) | Epochs / Max Iter | Normalization / Phân tách | Chỉ số Đánh giá |
-| :---: | :--- | :---: | :---: | :---: | :---: | :---: |
-| 1 | **Item-based MF with Bias** | MovieLens 1M | 20 | 30 | Item-based Mean / Split ngẫu nhiên (80/20) | Test RMSE: ~1.4372 (với Item-based normalization) |
-| 2 | **LightGCN (Graph Learning)**| MovieLens 1M | 64 | 15 | Phân tách Leave-one-out | Recall@20: ~0.0833 (NDCG@20: ~0.0338) |
+| STT | Thuật toán gợi ý | K (Chiều không gian ẩn) | Epochs Hội tụ | Chỉ số Recall@20 | Chỉ số NDCG@20 |
+| :---: | :--- | :---: | :---: | :---: | :---: |
+| 1 | **BPR-MF** | 20 | 40 | 0.1209 | 0.0483 |
+| 2 | **LightGCN** | 64 | 150 | **0.1384** | **0.0540** |
 
-*(Chỉ số chính xác cụ thể có thể dao động nhỏ tùy thuộc vào tham số khởi tạo ngẫu nhiên).*
+👉 *Nhận xét:* Kiến trúc truyền tin qua đồ thị đa tầng của **LightGCN** đã chứng minh hiệu quả vượt trội so với phân rã ma trận tuyến tính truyền thống (**BPR-MF**), tăng Recall@20 lên hơn **14.47%**.
